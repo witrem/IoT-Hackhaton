@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Co-Aid</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            background-color: #f4f4f9;
+            font-family: Arial, sans-serif;
+        }
+        .navbar {
+            margin-bottom: 20px;
+        }
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            color: #777;
+        }
+        table {
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        table, th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        h3 {
+            margin-top: 40px;
+        }
+        .ai-section {
+            margin-top: 40px;
+        }
+        .hidden {
+            display: none;
+        }
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Co-Aid</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link active" aria-current="page" href="#" onclick="showPage('home')">Anasayfa</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showPage('graphs')">Graphs</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="showPage('simulation')">Simulation</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container" id="home">
+    <hr>
+
+    <div class="row">
+        <div class="col">
+            <h3>Afet Yönetimi Kontrol Haritası</h3>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div class="row ai-section">
+        <div class="col-md-6">
+            <h4>Yapay Zeka - Sismik Veri Yorumu</h4>
+            <div id="aiSismik" class="alert alert-info" role="alert">
+                Henüz yorum yok.
+            </div>
+        </div>
+        <div class="col-md-6">
+            <h4>Yapay Zeka - Yangın Veri Yorumu</h4>
+            <div id="aiYangin" class="alert alert-info" role="alert">
+                Henüz yorum yok.
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <h3>IOT Sismik Sensörleri</h3>
+    <table id="iotSismikTable">
+        <thead>
+            <tr>
+                <th>Tarih-Saat</th>
+                <th>Bölge</th>
+                <th>Enlem</th>
+                <th>Boylam</th>
+                <th>Sensör Türü</th>
+                <th>Değer</th>
+                <th>Birim</th>
+                <th>Not</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h3>IOT Yangın Sensörleri</h3>
+    <table id="iotYanginTable">
+        <thead>
+            <tr>
+                <th>Tarih-Saat</th>
+                <th>Bölge</th>
+                <th>Enlem</th>
+                <th>Boylam</th>
+                <th>Sensör Türü</th>
+                <th>Değer</th>
+                <th>Birim</th>
+                <th>Not</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<div class="container hidden" id="graphs">
+    <hr>
+    <h3>Sensör Verileri Grafikleri</h3>
+
+    <div class="chart-container">
+        <h4>Yangın Sensör Verileri</h4>
+        <canvas id="yanginChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h4>Sismik Sensör Verileri</h4>
+        <canvas id="sismikChart"></canvas>
+    </div>
+</div>
+
+<div class="container hidden" id="simulation">
+    <hr>
+    <h3>Deprem Simülasyonu</h3>
+    <button class="btn btn-danger" onclick="simulateEarthquake()">Simülasyonu Başlat</button>
+    <div id="simulationStatus" class="mt-3"></div>
+</div>
+
+<footer>
+    <p>&copy; 2024 Co-One | All rights reserved.</p>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    function showPage(page) {
+        document.getElementById('home').classList.add('hidden');
+        document.getElementById('graphs').classList.add('hidden');
+        document.getElementById('simulation').classList.add('hidden');
+
+        document.getElementById(page).classList.remove('hidden');
+
+        const navLinks = document.querySelectorAll('.nav-link');
+        navLinks.forEach(link => {
+            if (link.getAttribute('onclick') === `showPage('${page}')`) {
+                link.classList.add('active');
+            } else {
+                link.classList.remove('active');
+            }
+        });
+
+        if (page === 'graphs') {
+            updateGraphs();
+        }
+    }
+
+    showPage('home');
+
+    const map = L.map('map').setView([39.0, 35.0], 6); 
+    const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const hubLocations = [
+        [41.0000, 28.9000],
+        [36.2000, 36.1000],
+        [37.5800, 36.9200],
+        [37.2160, 28.3660]
+    ];
+
+    function getRandomPositionInRadius(centerLat, centerLng, radiusKm) {
+        const radiusDeg = radiusKm / 111; 
+        const angle = Math.random() * 2 * Math.PI;
+        const dist = Math.random() * radiusDeg; 
+        const lat = centerLat + dist * Math.cos(angle);
+        const lng = centerLng + dist * Math.sin(angle);
+        return {lat, lng};
+    }
+
+    function generateDronesAroundHub(hubLat, hubLng, count) {
+        const drones = [];
+        for (let i=0; i<count; i++) {
+            const pos = getRandomPositionInRadius(hubLat, hubLng, 10); 
+            drones.push({lat: pos.lat, lng: pos.lng, hubLat, hubLng});
+        }
+        return drones;
+    }
+
+    let dronesData = [
+        ...generateDronesAroundHub(41.0000, 28.9000, 6),
+        ...generateDronesAroundHub(36.2000, 36.1000, 3),
+        ...generateDronesAroundHub(37.5800, 36.9200, 3),
+        ...generateDronesAroundHub(37.2160, 28.3660, 2)
+    ];
+
+    function generateSensorsAroundHub(hubLat, hubLng, count) {
+        const sensors = [];
+        for (let i = 0; i < count; i++) {
+            const pos = getRandomPositionInRadius(hubLat, hubLng, 5);
+            sensors.push([pos.lat, pos.lng]);
+        }
+        return sensors;
+    }
+
+    const sensorPoints = [
+        ...generateSensorsAroundHub(41.0000, 28.9000, 2),
+        ...generateSensorsAroundHub(36.2000, 36.1000, 2),
+        ...generateSensorsAroundHub(37.5800, 36.9200, 2),
+        ...generateSensorsAroundHub(37.2160, 28.3660, 2)
+    ];
+
+    const droneLayer = L.layerGroup();
+    const sensorLayer = L.layerGroup();
+
+    const droneIcon = L.divIcon({ 
+        className: 'leaflet-div-icon', 
+        html: '<div style="background-color: red; border-radius: 50%; width: 15px; height: 15px;"></div>' 
+    });
+    const hubIcon = L.divIcon({ 
+        className: 'leaflet-div-icon', 
+        html: '<div style="background-color: green; border-radius: 50%; width: 15px; height: 15px;"></div>' 
+    });
+    const sensorIcon = L.divIcon({ 
+        className: 'leaflet-div-icon', 
+        html: '<div style="background-color: blue; border-radius: 50%; width: 15px; height: 15px;"></div>' 
+    });
+
+    hubLocations.forEach((loc, index) => {
+        const marker = L.marker(loc, { draggable: false, icon: hubIcon }).addTo(droneLayer);
+        marker.bindPopup(`Drone Hub #${index+1}`).openPopup();
+        L.circle(loc, { 
+            color: 'green', 
+            fillColor: 'green', 
+            fillOpacity: 0.2,
+            radius: 10000 
+        }).addTo(droneLayer);
+    });
+
+    let droneMarkers = [];
+    dronesData.forEach((d, idx) => {
+        const marker = L.marker([d.lat, d.lng], { draggable: false, icon: droneIcon }).addTo(droneLayer);
+        marker.bindPopup(`Drone #${idx+1}`);
+        droneMarkers.push(marker);
+    });
+
+    sensorPoints.forEach((loc, idx) => {
+        const marker = L.marker(loc, { icon: sensorIcon }).addTo(sensorLayer);
+        marker.bindPopup(`IoT Sensör #${idx+1}`);
+    });
+
+    const overlays = {
+        "Hubs & Drones": droneLayer,
+        "IoT Sensör Ağı": sensorLayer
+    };
+
+    L.control.layers(null, overlays).addTo(map);
+    droneLayer.addTo(map);
+
+    const iotSismikBody = document.querySelector('#iotSismikTable tbody');
+    const iotYanginBody = document.querySelector('#iotYanginTable tbody');
+
+    const aiSismikDiv = document.getElementById('aiSismik');
+    const aiYanginDiv = document.getElementById('aiYangin');
+
+    const riskData = {
+    };
+    const RISK_THRESHOLD = 2;
+    const RISK_TIME_WINDOW = 60 * 1000;
+
+    function randomInRange(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    function getRegionNameBySensorIndex(index) {
+        if (index <= 1) return "İstanbul";
+        else if (index <= 3) return "Hatay";
+        else if (index <= 5) return "Kahramanmaraş";
+        else return "Muğla";
+    }
+
+    const sismikSensor = {type:"Sismik", unit:"g", min:0.002, max:0.01, note:"Deprem titreşimi"};
+    const yanginSensors = [
+        {type:"Sıcaklık", unit:"°C", min:20, max:35, note:"Orman sıcaklığı"},
+        {type:"Duman", unit:"mg/m³", min:0.2, max:0.5, note:"Duman yoğunluğu"},
+        {type:"Nem", unit:"%", min:40, max:60, note:"Orman nem oranı"}
+    ];
+
+    function generateDataForSensor(sensor, specificRegion = null, specificValue = null) {
+        const now = new Date();
+        const dateTimeStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+        let regionIndex;
+
+        if (specificRegion) {
+            const indices = [];
+            sensorPoints.forEach((point, idx) => {
+                const region = getRegionNameBySensorIndex(idx);
+                if (region === specificRegion) {
+                    indices.push(idx);
+                }
+            });
+            regionIndex = indices[Math.floor(Math.random() * indices.length)];
+        } else {
+            regionIndex = Math.floor(Math.random()*sensorPoints.length);
+        }
+
+        const point = sensorPoints[regionIndex];
+        const region = getRegionNameBySensorIndex(regionIndex);
+        const sensorType = sensor.type;
+
+        let value;
+        let isOutOfRange = false;
+
+        if (specificValue !== null) {
+            value = specificValue;
+            isOutOfRange = true;
+        } else {
+            const outOfRangeProbability = 0.1;
+
+            if (Math.random() < outOfRangeProbability) {
+                isOutOfRange = true;
+                value = randomInRange(sensor.max + 0.001, sensor.max + (sensor.max - sensor.min));
+            } else {
+                value = randomInRange(sensor.min, sensor.max);
+            }
+        }
+
+        value = Math.max(value, 0);
+
+        return {
+            dateTimeStr,
+            lat: point[0].toFixed(4),
+            lon: point[1].toFixed(4),
+            region: region,
+            sensorType: sensor.type,
+            unit: sensor.unit,
+            value: value.toFixed(4),
+            note: sensor.note,
+            isOutOfRange
+        };
+    }
+
+    function addIoTDataToTable(data) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${data.dateTimeStr}</td>
+            <td>${data.region}</td>
+            <td>${data.lat}</td>
+            <td>${data.lon}</td>
+            <td>${data.sensorType}</td>
+            <td class="${data.isOutOfRange ? 'text-danger' : ''}">${data.value}</td>
+            <td>${data.unit}</td>
+            <td>${data.note}</td>
+        `;
+
+        if (data.sensorType === "Sismik") {
+            iotSismikBody.prepend(tr);
+            updateAISismik(data);
+            sismikChartData.labels.push(data.dateTimeStr);
+            sismikChartData.datasets[0].data.push(data.value);
+        } else {
+            iotYanginBody.prepend(tr);
+            updateAIYangin(data);
+            yanginChartData.labels.push(data.dateTimeStr);
+            if (data.sensorType === "Sıcaklık") {
+                yanginChartData.datasets[0].data.push(data.value);
+            } else if (data.sensorType === "Duman") {
+                yanginChartData.datasets[1].data.push(data.value);
+            } else if (data.sensorType === "Nem") {
+                yanginChartData.datasets[2].data.push(data.value);
+            }
+        }
+
+        if (data.isOutOfRange) {
+            trackRisk(data.region, data.sensorType);
+        }
+    }
+
+    function updateAISismik(data) {
+        if (data.isOutOfRange) {
+            aiSismikDiv.className = 'alert alert-danger';
+            aiSismikDiv.textContent = `Acil Durum! ${data.region} bölgesinde sismik aktivite yüksek (${data.value} ${data.unit}).`;
+        } else {
+            aiSismikDiv.className = 'alert alert-success';
+            aiSismikDiv.textContent = `Sismik Aktivite Normal: ${data.region} bölgesinde değer ${data.value} ${data.unit}.`;
+        }
+    }
+
+    function updateAIYangin(data) {
+        let message = '';
+        let alertClass = '';
+
+        switch(data.sensorType) {
+            case "Sıcaklık":
+                if (data.value > 30) {
+                    message = `Dikkat! ${data.region} bölgesinde sıcaklık yüksek (${data.value} ${data.unit}). Yangın riski artıyor.`;
+                    alertClass = 'alert-warning';
+                } else {
+                    message = `Sıcaklık normal: ${data.region} bölgesinde değer ${data.value} ${data.unit}.`;
+                    alertClass = 'alert-success';
+                }
+                break;
+            case "Duman":
+                if (data.value > 0.3) {
+                    message = `Acil Durum! ${data.region} bölgesinde duman yoğunluğu yüksek (${data.value} ${data.unit}). Yangın riski var.`;
+                    alertClass = 'alert-danger';
+                } else {
+                    message = `Duman yoğunluğu normal: ${data.region} bölgesinde değer ${data.value} ${data.unit}.`;
+                    alertClass = 'alert-success';
+                }
+                break;
+            case "Nem":
+                if (data.value < 45) {
+                    message = `Dikkat! ${data.region} bölgesinde nem oranı düşük (${data.value} ${data.unit}). Yangın riski artıyor.`;
+                    alertClass = 'alert-warning';
+                } else {
+                    message = `Nem oranı normal: ${data.region} bölgesinde değer ${data.value} ${data.unit}.`;
+                    alertClass = 'alert-success';
+                }
+                break;
+            default:
+                message = `Yangın Sensörü Verisi: ${data.value} ${data.unit}.`;
+                alertClass = 'alert-info';
+        }
+
+        if (data.isOutOfRange) {
+            aiYanginDiv.className = 'alert alert-danger';
+            aiYanginDiv.textContent = `Acil Durum! ${data.region} bölgesinde yangın tespit edildi (${data.sensorType}: ${data.value} ${data.unit}).`;
+        } else {
+            aiYanginDiv.className = alertClass;
+            aiYanginDiv.textContent = message;
+        }
+    }
+
+    function trackRisk(region, sensorType) {
+        const now = Date.now();
+
+        if (!riskData[region]) {
+            riskData[region] = {};
+        }
+
+        if (!riskData[region][sensorType]) {
+            riskData[region][sensorType] = [];
+        }
+
+        const cutoff = now - RISK_TIME_WINDOW;
+
+        riskData[region][sensorType] = riskData[region][sensorType].filter(timestamp => timestamp > cutoff);
+
+        riskData[region][sensorType].push(now);
+
+        if (riskData[region][sensorType].length >= RISK_THRESHOLD) {
+            triggerEmergency(region);
+            riskData[region][sensorType] = [];
+        }
+    }
+
+    function triggerEmergency(region) {
+        aiSismikDiv.className = 'alert alert-danger';
+        aiSismikDiv.textContent = `Acil Durum! ${region} bölgesinde birden fazla sensör yüksek değer raporladı. Müdahale gerekmektedir.`;
+
+        aiYanginDiv.className = 'alert alert-danger';
+        aiYanginDiv.textContent = `Acil Durum! ${region} bölgesinde birden fazla sensör yüksek değer raporladı. Müdahale gerekmektedir.`;
+
+        redirectDrones(region);
+    }
+
+    function redirectDrones(region) {
+        let hubCoord;
+        if (region === "Hatay") {
+            hubCoord = hubLocations[1];
+        } else if (region === "Kahramanmaraş") {
+            hubCoord = hubLocations[2];
+        } else {
+            return;
+        }
+
+        dronesData.forEach((drone, idx) => {
+            if (drone.hubLat === hubCoord[0] && drone.hubLng === hubCoord[1]) {
+                const newPos = {
+                    lat: hubCoord[0] + (drone.lat - hubCoord[0]) * 0.9, 
+                    lng: hubCoord[1] + (drone.lng - hubCoord[1]) * 0.9
+                };
+                dronesData[idx].lat = newPos.lat;
+                dronesData[idx].lng = newPos.lng;
+                droneMarkers[idx].setLatLng([newPos.lat, newPos.lng]);
+                droneMarkers[idx].bindPopup(`Drone #${idx+1} - Müdahale`).openPopup();
+            }
+        });
+    }
+
+    function moveDrones() {
+        dronesData.forEach((d, idx) => {
+            const newPos = getRandomPositionInRadius(d.hubLat, d.hubLng, 10);
+            d.lat = newPos.lat;
+            d.lng = newPos.lng;
+            droneMarkers[idx].setLatLng([d.lat, d.lng]);
+        });
+    }
+
+    setInterval(() => {
+        const sismikData = generateDataForSensor(sismikSensor);
+        addIoTDataToTable(sismikData);
+    }, 4000);
+
+    setInterval(() => {
+        const yanginSensor = yanginSensors[Math.floor(Math.random()*yanginSensors.length)];
+        const yanginData = generateDataForSensor(yanginSensor);
+        addIoTDataToTable(yanginData);
+    }, 4000);
+
+    setInterval(() => {
+        moveDrones();
+    }, 15000);
+
+    const sismikChartData = {
+        labels: [],
+        datasets: [{
+            label: 'Sismik Değerler (g)',
+            data: [],
+            borderColor: 'rgba(75, 192, 192, 1)',
+            fill: false,
+            tension: 0.1
+        }]
+    };
+
+    const yanginChartData = {
+        labels: [],
+        datasets: [
+            {
+                label: 'Sıcaklık (°C)',
+                data: [],
+                borderColor: 'rgba(255, 99, 132, 1)',
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: 'Duman (mg/m³)',
+                data: [],
+                borderColor: 'rgba(54, 162, 235, 1)',
+                fill: false,
+                tension: 0.1
+            },
+            {
+                label: 'Nem (%)',
+                data: [],
+                borderColor: 'rgba(255, 206, 86, 1)',
+                fill: false,
+                tension: 0.1
+            }
+        ]
+    };
+
+    let sismikChart;
+    let yanginChart;
+
+    function initializeCharts() {
+        const ctxSismik = document.getElementById('sismikChart').getContext('2d');
+        sismikChart = new Chart(ctxSismik, {
+            type: 'line',
+            data: sismikChartData,
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Zaman' } },
+                    y: { display: true, title: { display: true, text: 'Değer (g)' } }
+                }
+            }
+        });
+
+        const ctxYangin = document.getElementById('yanginChart').getContext('2d');
+        yanginChart = new Chart(ctxYangin, {
+            type: 'line',
+            data: yanginChartData,
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Zaman' } },
+                    y: { display: true, title: { display: true, text: 'Değer' } }
+                }
+            }
+        });
+    }
+
+    function updateGraphs() {
+        if (!sismikChart || !yanginChart) {
+            initializeCharts();
+        } else {
+            sismikChart.update();
+            yanginChart.update();
+        }
+    }
+
+    function simulateEarthquake() {
+        const simulationStatus = document.getElementById('simulationStatus');
+        simulationStatus.innerHTML = 'Simülasyon çalıştırılıyor...';
+
+        const affectedRegions = ["Hatay", "Kahramanmaraş"];
+        affectedRegions.forEach(region => {
+            for (let i = 0; i < 5; i++) {
+                const sismikData = generateDataForSensor(sismikSensor, region, (sismikSensor.max + 0.05).toFixed(4));
+                addIoTDataToTable(sismikData);
+            }
+        });
+
+        simulationStatus.innerHTML = 'Simülasyon tamamlandı!';
+    }
+</script>
+
+</body>
+</html>
